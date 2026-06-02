@@ -1,0 +1,33 @@
+@import "tailwindcss";
+.petal {
+  position: absolute;
+  top: -20px;
+
+  background: linear-gradient(
+    135deg,
+    #ff4d6d,
+    #ffb3c1,
+    #b7efc5
+  );
+
+  border-radius: 50% 50% 50% 0;
+
+  opacity: 0.7;
+
+  animation-name: fall;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+
+  filter: blur(1px);
+}
+
+@keyframes fall {
+
+  0% {
+    transform: translateY(-10vh) rotate(0deg);
+  }
+
+  100% {
+    transform: translateY(110vh) rotate(360deg);
+  }
+}
