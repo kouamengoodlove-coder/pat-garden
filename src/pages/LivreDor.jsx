@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 export default function LivreDor() {
   const [nom, setNom] = useState("");
   const [ville, setVille] = useState("");
   const [message, setMessage] = useState("");
+  const [dateRevelation, setDateRevelation] = useState("");
   const [pages, setPages] = useState([]);
   const [pageActuelle, setPageActuelle] = useState(0);
   const [formOuvert, setFormOuvert] = useState(false);
@@ -22,78 +23,100 @@ export default function LivreDor() {
     chargerLivre();
   }, []);
 
+  const aujourdHuiISO = new Date().toISOString().slice(0, 10);
+
+  const pagesVisibles = pages.filter(
+    (p) => !p.dateRevelation || p.dateRevelation <= aujourdHuiISO
+  );
+  const capsulesEnAttente = pages.filter(
+    (p) => p.dateRevelation && p.dateRevelation > aujourdHuiISO
+  );
+
   async function signerLivre() {
     if (nom.trim() === "" || message.trim() === "") {
-      alert("Veuillez remplir le nom et le message 🌸");
+      alert("Veuillez remplir le nom et le message");
       return;
     }
     const existe = pages.some((p) => p.nom?.toLowerCase().trim() === nom.toLowerCase().trim());
     if (existe) {
-      alert("Vous avez déjà signé le Livre d'Or 🌸");
+      alert("Vous avez déjà signé le Livre d'Or");
       return;
     }
     const nouvellePage = {
       nom, ville, texte: message,
       date: new Date().toLocaleDateString("fr-FR"),
       annee: new Date().getFullYear(),
+      dateRevelation: dateRevelation || null,
+      likes: 0, fleurs: 0, etoiles: 0,
     };
     const docRef = await addDoc(collectionLivre, nouvellePage);
     const nouvelleListe = [...pages, { id: docRef.id, ...nouvellePage }];
     setPages(nouvelleListe);
-    setPageActuelle(nouvelleListe.length - 1);
-    setNom(""); setVille(""); setMessage("");
+    setNom(""); setVille(""); setMessage(""); setDateRevelation("");
     setFormOuvert(false);
-    alert("Merci d'avoir signé le Livre d'Or 🌸");
+    alert(
+      dateRevelation
+        ? "Merci ! Votre message sera révélé le " + new Date(dateRevelation).toLocaleDateString("fr-FR")
+        : "Merci d'avoir signé le Livre d'Or"
+    );
   }
 
-  const page = pages[pageActuelle];
-  const total = pages.length;
+  async function ajouterReaction(id, type) {
+    const pageRef = doc(db, "livredor", id);
+    await updateDoc(pageRef, { [type]: increment(1) });
+    setPages(pages.map((p) => (p.id === id ? { ...p, [type]: (p[type] || 0) + 1 } : p)));
+  }
+
+  const page = pagesVisibles[pageActuelle];
+  const total = pagesVisibles.length;
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4">
+    <div className="min-h-screen bg-cream py-12 px-4">
       <div className="max-w-3xl mx-auto">
-
-        {/* HEADER */}
         <div className="text-center mb-12">
-          <p className="text-pink-400 text-sm font-medium tracking-widest uppercase mb-2">Livre d'Or</p>
-          <h1 className="text-4xl font-bold text-gray-800 mb-3">Les mots de nos invités</h1>
-          <p className="text-gray-400">Chaque signature est un souvenir précieux pour Patricia</p>
+          <p className="text-terracotta text-xs font-medium tracking-widest uppercase mb-2">Livre d'or</p>
+          <h1 className="text-4xl font-display text-pine mb-3">Les mots de nos invités</h1>
+          <p className="text-pine-soft">Chaque signature est un souvenir précieux pour Patricia</p>
         </div>
 
-        {/* STATS */}
         <div className="grid grid-cols-3 gap-4 mb-10">
-          <div className="bg-white rounded-2xl p-5 text-center shadow-sm border border-gray-100">
-            <p className="text-3xl font-bold text-pink-500">{total}</p>
-            <p className="text-xs text-gray-400 mt-1">Signatures</p>
+          <div className="bg-white rounded-xl p-5 text-center border border-line">
+            <p className="text-3xl font-display text-terracotta">{total}</p>
+            <p className="text-xs text-pine-soft/70 mt-1">Signatures</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-sm border border-gray-100">
-            <p className="text-3xl font-bold text-pink-500">
-              {[...new Set(pages.map((p) => p.ville).filter(Boolean))].length}
+          <div className="bg-white rounded-xl p-5 text-center border border-line">
+            <p className="text-3xl font-display text-terracotta">
+              {[...new Set(pagesVisibles.map((p) => p.ville).filter(Boolean))].length}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Villes</p>
+            <p className="text-xs text-pine-soft/70 mt-1">Villes</p>
           </div>
-          <div className="bg-white rounded-2xl p-5 text-center shadow-sm border border-gray-100">
-            <p className="text-3xl font-bold text-pink-500">
-              {[...new Set(pages.map((p) => p.annee))].length}
+          <div className="bg-white rounded-xl p-5 text-center border border-line">
+            <p className="text-3xl font-display text-terracotta">
+              {[...new Set(pagesVisibles.map((p) => p.annee))].length}
             </p>
-            <p className="text-xs text-gray-400 mt-1">Années</p>
+            <p className="text-xs text-pine-soft/70 mt-1">Années</p>
           </div>
         </div>
 
-        {/* BOUTON SIGNER */}
+        {capsulesEnAttente.length > 0 && (
+          <div className="bg-honey/10 border border-honey/40 rounded-xl p-4 mb-8 text-center text-sm text-terracotta-dark">
+            {capsulesEnAttente.length} message{capsulesEnAttente.length > 1 ? "s" : ""} en capsule temporelle,
+            {" "}pas encore révélé{capsulesEnAttente.length > 1 ? "s" : ""}.
+          </div>
+        )}
+
         <div className="flex justify-center mb-10">
           <button
             onClick={() => setFormOuvert(!formOuvert)}
-            className="px-8 py-4 rounded-2xl bg-pink-500 hover:bg-pink-600 text-white font-semibold shadow-lg hover:scale-105 transition"
+            className="px-8 py-3.5 rounded-full bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
           >
-            {formOuvert ? "✕ Fermer" : "✍️ Signer le Livre d'Or"}
+            {formOuvert ? "Fermer" : "Signer le livre d'or"}
           </button>
         </div>
 
-        {/* FORMULAIRE (accordéon) */}
         {formOuvert && (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 p-8 mb-10">
-            <h2 className="text-xl font-semibold text-gray-700 mb-6">Votre signature</h2>
+          <div className="bg-white rounded-2xl border border-line p-8 mb-10">
+            <h2 className="text-xl font-display text-pine mb-6">Votre signature</h2>
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <input
@@ -101,87 +124,103 @@ export default function LivreDor() {
                   placeholder="Votre nom *"
                   value={nom}
                   onChange={(e) => setNom(e.target.value)}
-                  className="w-full p-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-300 text-gray-700"
+                  className="w-full p-4 rounded-xl border border-line focus:outline-none focus:ring-1 focus:ring-terracotta text-pine"
                 />
                 <input
                   type="text"
                   placeholder="Votre ville (facultatif)"
                   value={ville}
                   onChange={(e) => setVille(e.target.value)}
-                  className="w-full p-4 rounded-xl border border-gray-200 focus:outline-none focus:ring-2 focus:ring-pink-300 text-gray-700"
+                  className="w-full p-4 rounded-xl border border-line focus:outline-none focus:ring-1 focus:ring-terracotta text-pine"
                 />
               </div>
               <textarea
                 placeholder="Votre mot pour Patricia..."
                 value={message}
                 onChange={(e) => setMessage(e.target.value)}
-                className="w-full p-4 rounded-xl border border-gray-200 h-36 resize-none focus:outline-none focus:ring-2 focus:ring-pink-300 text-gray-700"
+                className="w-full p-4 rounded-xl border border-line h-36 resize-none focus:outline-none focus:ring-1 focus:ring-terracotta text-pine"
               />
+              <div>
+                <label className="text-sm text-pine-soft block mb-2">
+                  Révéler ce message à une date précise (optionnel — capsule temporelle)
+                </label>
+                <input
+                  type="date"
+                  value={dateRevelation}
+                  onChange={(e) => setDateRevelation(e.target.value)}
+                  className="p-3 rounded-xl border border-line text-pine text-sm focus:outline-none focus:ring-1 focus:ring-terracotta"
+                />
+              </div>
               <div className="flex justify-end">
                 <button
                   onClick={signerLivre}
-                  className="px-8 py-3 rounded-xl bg-pink-500 hover:bg-pink-600 text-white font-semibold transition"
+                  className="px-8 py-3 rounded-xl bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
                 >
-                  Publier 🌸
+                  Publier
                 </button>
               </div>
             </div>
           </div>
         )}
 
-        {/* LECTEUR DE PAGES */}
         {total > 0 && page && (
-          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
-
-            {/* BARRE DE PROGRESSION */}
-            <div className="h-1 bg-gray-100">
+          <div className="bg-white rounded-2xl border border-line overflow-hidden">
+            <div className="h-1 bg-cream-dark">
               <div
-                className="h-1 bg-pink-400 transition-all duration-500"
+                className="h-1 bg-terracotta transition-all duration-500"
                 style={{ width: `${((pageActuelle + 1) / total) * 100}%` }}
               />
             </div>
 
             <div className="p-8 md:p-12">
-
-              {/* AUTEUR */}
               <div className="flex items-center gap-4 mb-8">
-                <div className="w-14 h-14 rounded-full bg-pink-100 flex items-center justify-center text-2xl font-bold text-pink-500">
+                <div className="w-14 h-14 rounded-full bg-terracotta/15 flex items-center justify-center text-xl font-display text-terracotta-dark">
                   {page.nom?.charAt(0).toUpperCase()}
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-gray-800">{page.nom}</h2>
-                  {page.ville && (
-                    <p className="text-sm text-gray-400">📍 {page.ville}</p>
-                  )}
+                  <h2 className="text-xl font-display text-pine">{page.nom}</h2>
+                  {page.ville && <p className="text-sm text-pine-soft/70">{page.ville}</p>}
                 </div>
-                <span className="ml-auto text-xs text-gray-300">{page.date}</span>
+                <span className="ml-auto text-xs text-pine-soft/50">{page.date}</span>
               </div>
 
-              {/* MESSAGE */}
-              <blockquote className="text-gray-600 text-lg leading-relaxed italic border-l-4 border-pink-200 pl-6 min-h-[120px]">
+              <blockquote className="text-pine-soft text-lg leading-relaxed italic font-display border-l-2 border-terracotta/40 pl-6 min-h-[100px]">
                 "{page.texte}"
               </blockquote>
 
+              <div className="flex gap-2 mt-6">
+                {[
+                  { type: "likes", label: "cœur", count: page.likes },
+                  { type: "fleurs", label: "fleur", count: page.fleurs },
+                  { type: "etoiles", label: "étoile", count: page.etoiles },
+                ].map(({ type, label, count }) => (
+                  <button
+                    key={type}
+                    onClick={() => ajouterReaction(page.id, type)}
+                    className="px-3 py-1.5 rounded-full text-xs bg-cream border border-line text-pine-soft hover:bg-cream-dark transition"
+                    title={label}
+                  >
+                    {count || 0}
+                  </button>
+                ))}
+              </div>
             </div>
 
-            {/* NAVIGATION */}
-            <div className="border-t border-gray-50 px-8 py-5 flex items-center justify-between">
+            <div className="border-t border-line px-8 py-5 flex items-center justify-between">
               <button
                 onClick={() => setPageActuelle(Math.max(pageActuelle - 1, 0))}
                 disabled={pageActuelle === 0}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition"
+                className="px-5 py-2 rounded-xl text-sm font-medium text-pine-soft hover:bg-cream disabled:opacity-30 transition"
               >
                 ← Précédent
               </button>
-
-              <span className="text-sm text-gray-300 font-medium">
+              <span className="text-sm text-pine-soft/60 font-medium">
                 {pageActuelle + 1} / {total}
               </span>
-
               <button
                 onClick={() => setPageActuelle(Math.min(pageActuelle + 1, total - 1))}
                 disabled={pageActuelle === total - 1}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl text-sm font-medium text-gray-500 hover:bg-gray-50 disabled:opacity-30 transition"
+                className="px-5 py-2 rounded-xl text-sm font-medium text-pine-soft hover:bg-cream disabled:opacity-30 transition"
               >
                 Suivant →
               </button>
@@ -190,12 +229,10 @@ export default function LivreDor() {
         )}
 
         {total === 0 && (
-          <div className="text-center py-20 text-gray-300">
-            <p className="text-5xl mb-4">🌸</p>
+          <div className="text-center py-20 text-pine-soft/50">
             <p className="text-lg">Sois le premier à signer !</p>
           </div>
         )}
-
       </div>
     </div>
   );

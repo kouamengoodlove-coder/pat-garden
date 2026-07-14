@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../firebase/firebase";
 
 export default function Souvenirs() {
@@ -13,10 +13,42 @@ export default function Souvenirs() {
       setMessages(messagesData.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
 
       const imagesData = await getDocs(collection(db, "images"));
-      setImages(imagesData.docs.map((doc) => ({ id: doc.id, ...doc.data() })));
+      const toutesImages = imagesData.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+      setImages(toutesImages.filter((img) => img.approuve !== false));
     }
     chargerDonnees();
   }, []);
+
+  async function reagirMessage(id, type) {
+    await updateDoc(doc(db, "messages", id), { [type]: increment(1) });
+    setMessages(messages.map((m) => (m.id === id ? { ...m, [type]: (m[type] || 0) + 1 } : m)));
+  }
+
+  async function reagirImage(id, type) {
+    await updateDoc(doc(db, "images", id), { [type]: increment(1) });
+    setImages(images.map((img) => (img.id === id ? { ...img, [type]: (img[type] || 0) + 1 } : img)));
+  }
+
+  function BoutonsReaction({ item, onReagir }) {
+    return (
+      <div className="flex gap-2 mt-3">
+        {[
+          { type: "likes", label: "cœur", count: item.likes },
+          { type: "fleurs", label: "fleur", count: item.fleurs },
+          { type: "etoiles", label: "étoile", count: item.etoiles },
+        ].map(({ type, label, count }) => (
+          <button
+            key={type}
+            onClick={() => onReagir(item.id, type)}
+            className="px-2.5 py-1 rounded-full text-xs bg-cream border border-line text-pine-soft hover:bg-cream-dark transition"
+            title={label}
+          >
+            {count || 0}
+          </button>
+        ))}
+      </div>
+    );
+  }
 
   const souvenirsParAnnee = {};
 
@@ -37,44 +69,51 @@ export default function Souvenirs() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-white via-pink-50 to-red-50 p-6 md:p-10">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-cream p-6 md:p-10">
+      <div className="max-w-6xl mx-auto">
+        <h1 className="text-4xl md:text-5xl font-display text-center text-pine mb-16">
+          Les souvenirs du jardin
+        </h1>
 
-        <h1 className="text-5xl font-bold text-center text-gray-800 mb-16">📚 Les Souvenirs du Jardin</h1>
+        {Object.keys(souvenirsParAnnee).length === 0 && (
+          <p className="text-center text-pine-soft py-16">Aucun souvenir pour l'instant.</p>
+        )}
 
         {Object.keys(souvenirsParAnnee).sort((a, b) => b - a).map((annee) => (
-          <div key={annee} className="mb-24">
-            <h2 className="text-4xl font-bold text-pink-600 mb-12">🌸 Souvenirs {annee}</h2>
+          <div key={annee} className="mb-20">
+            <h2 className="text-3xl font-display text-terracotta mb-10">Souvenirs {annee}</h2>
 
             {Object.keys(souvenirsParAnnee[annee]).map((auteur) => {
               const personne = souvenirsParAnnee[annee][auteur];
               return (
-                <div key={auteur} className="bg-white/80 backdrop-blur-md rounded-3xl shadow-2xl p-8 mb-12">
-                  <h3 className="text-3xl font-bold text-gray-800 mb-8">👤 {auteur}</h3>
+                <div key={auteur} className="bg-white border border-line rounded-2xl p-8 mb-10">
+                  <h3 className="text-2xl font-display text-pine mb-7">{auteur}</h3>
 
-                  <div className="space-y-6 mb-10">
+                  <div className="space-y-4 mb-8">
                     {personne.messages.map((msg, index) => (
-                      <div key={index} className="bg-green-50 rounded-3xl p-6 shadow">
-                        <div className="flex justify-between items-center mb-3">
-                          <span className="font-semibold text-green-700">💌 Message</span>
-                          <span className="text-sm text-gray-500">{msg.date}</span>
+                      <div key={index} className="bg-cream rounded-xl p-5 border border-line">
+                        <div className="flex justify-between items-center mb-2">
+                          <span className="text-xs uppercase tracking-wide text-sage font-medium">Message</span>
+                          <span className="text-xs text-pine-soft/60">{msg.date}</span>
                         </div>
-                        <p className="text-gray-700 text-lg">{msg.texte}</p>
+                        <p className="text-pine-soft">{msg.texte}</p>
+                        <BoutonsReaction item={msg} onReagir={reagirMessage} />
                       </div>
                     ))}
                   </div>
 
-                  <div className="columns-1 sm:columns-2 md:columns-3 gap-8 space-y-8">
+                  <div className="columns-1 sm:columns-2 md:columns-3 gap-6 space-y-6">
                     {personne.images.map((img, index) => (
-                      <div key={index} className="break-inside-avoid shadow-2xl overflow-hidden bg-white p-3 hover:scale-105 transition duration-300 rounded-3xl">
+                      <div key={index} className="break-inside-avoid border border-line overflow-hidden bg-white p-2 rounded-lg hover:-translate-y-1 transition duration-300">
                         <img
                           src={img.url}
                           alt="Souvenir"
-                          className="w-full object-cover cursor-pointer rounded-2xl"
+                          className="w-full object-cover cursor-pointer rounded"
                           onClick={() => setSelectedImage(img.url)}
                         />
-                        <div className="mt-4">
-                          <p className="text-sm text-gray-500">📅 {img.date}</p>
+                        <div className="mt-2 px-1 pb-1">
+                          <p className="text-xs text-pine-soft/70">{img.date}</p>
+                          <BoutonsReaction item={img} onReagir={reagirImage} />
                         </div>
                       </div>
                     ))}
@@ -86,13 +125,12 @@ export default function Souvenirs() {
         ))}
       </div>
 
-      {/* MODAL */}
       {selectedImage && (
         <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50 p-6"
           onClick={() => setSelectedImage(null)}
         >
-          <img src={selectedImage} alt="Grand souvenir" className="max-w-full max-h-full rounded-3xl shadow-2xl" />
+          <img src={selectedImage} alt="Grand souvenir" className="max-w-full max-h-full rounded-2xl" />
         </div>
       )}
     </div>
