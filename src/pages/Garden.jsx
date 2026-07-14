@@ -1,3 +1,4 @@
+import { Link } from "react-router-dom";
 import GardenHeader from "../components/GardenHeader";
 import Timeline from "../components/Timeline";
 import { useEffect, useState } from "react";
@@ -5,6 +6,10 @@ import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase
 import { db } from "../firebase/firebase";
 import Petals from "../components/Petals";
 import UploadImage from "../components/UploadImage";
+
+function totalReactions(item) {
+  return (item.likes || 0) + (item.fleurs || 0) + (item.etoiles || 0);
+}
 
 export default function Garden() {
   const aujourdHui = new Date();
@@ -28,15 +33,19 @@ export default function Garden() {
     async function chargerDonnees() {
       const data = await getDocs(messagesCollection);
       const liste = data.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      const filtres = liste.filter((msg) => msg.annee === anneeActuelle);
-      setMessages(filtres.slice(0, 3));
+      const topMessages = liste
+        .filter((msg) => msg.annee === anneeActuelle)
+        .sort((a, b) => totalReactions(b) - totalReactions(a))
+        .slice(0, 3);
+      setMessages(topMessages);
 
       const imagesData = await getDocs(collection(db, "images"));
       const listeImages = imagesData.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
-      const imagesAnnee = listeImages
+      const topImages = listeImages
         .filter((img) => img.annee === anneeActuelle && img.approuve !== false)
+        .sort((a, b) => totalReactions(b) - totalReactions(a))
         .slice(0, 3);
-      setImages(imagesAnnee);
+      setImages(topImages);
     }
     chargerDonnees();
   }, []);
@@ -51,9 +60,9 @@ export default function Garden() {
       nom, texte: message, date: nouvelleDate,
       annee: anneeActuelle, likes: 0, fleurs: 0, etoiles: 0
     };
-    const docRef = await addDoc(messagesCollection, nouveauMessage);
-    setMessages([{ id: docRef.id, ...nouveauMessage }, ...messages].slice(0, 3));
+    await addDoc(messagesCollection, nouveauMessage);
     setNom(""); setMessage(""); setFormOuvert(false);
+    alert("Merci pour votre message !");
   }
 
   async function ajouterReaction(id, type) {
@@ -64,38 +73,16 @@ export default function Garden() {
     ));
   }
 
-  const getShape = (index) => {
-    const shapes = [
-      { style: { clipPath: "url(#heart-clip)", WebkitClipPath: "url(#heart-clip)" } },
-      { style: {
-        clipPath: "polygon(50% 0%, 61% 20%, 85% 10%, 75% 33%, 100% 40%, 78% 53%, 93% 75%, 68% 70%, 65% 95%, 50% 78%, 35% 95%, 32% 70%, 7% 75%, 22% 53%, 0% 40%, 25% 33%, 15% 10%, 39% 20%)",
-        WebkitClipPath: "polygon(50% 0%, 61% 20%, 85% 10%, 75% 33%, 100% 40%, 78% 53%, 93% 75%, 68% 70%, 65% 95%, 50% 78%, 35% 95%, 32% 70%, 7% 75%, 22% 53%, 0% 40%, 25% 33%, 15% 10%, 39% 20%)",
-      } },
-      { style: {
-        clipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
-        WebkitClipPath: "polygon(50% 0%, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%)",
-      } },
-    ];
-    return shapes[index % shapes.length];
-  };
-
   return (
     <>
       <Petals />
 
-      <svg width="0" height="0" style={{ position: "absolute" }}>
-        <defs>
-          <clipPath id="heart-clip" clipPathUnits="objectBoundingBox">
-            <path d="M0.5,0.25 C0.5,0.1,0.25,0,0.15,0.15 C0,0.3,0,0.5,0.5,0.85 C1,0.5,1,0.3,0.85,0.15 C0.75,0,0.5,0.1,0.5,0.25 Z" />
-          </clipPath>
-        </defs>
-      </svg>
-
       <div className="min-h-screen bg-cream py-10 px-4">
-        <div className="max-w-3xl mx-auto">
+        <div className="max-w-4xl mx-auto">
           <GardenHeader />
 
-          <div className="flex justify-center my-8">
+          {/* STATUT */}
+          <div className="flex justify-center mb-10">
             <span className={`px-5 py-2 rounded-full text-sm font-medium ${
               jardinOuvert
                 ? "bg-sage/20 text-pine"
@@ -105,8 +92,9 @@ export default function Garden() {
             </span>
           </div>
 
+          {/* ACTIONS */}
           {jardinOuvert && (
-            <div className="flex gap-4 justify-center mb-6">
+            <div className="flex gap-4 justify-center flex-wrap mb-10">
               <button
                 onClick={() => { setFormOuvert(!formOuvert); setUploadOuvert(false); }}
                 className={`px-6 py-3 rounded-full font-medium transition text-sm ${
@@ -123,17 +111,22 @@ export default function Garden() {
               >
                 {uploadOuvert ? "Fermer" : "Ajouter une photo"}
               </button>
+              <Link to="/souvenirs">
+                <button className="px-6 py-3 rounded-full font-medium transition text-sm border border-pine text-pine hover:bg-white">
+                  Accéder aux souvenirs
+                </button>
+              </Link>
             </div>
           )}
 
           {jardinOuvert && uploadOuvert && (
-            <div className="bg-white rounded-2xl border border-line p-6 mb-6">
+            <div className="bg-white rounded-2xl border border-line p-8 mb-10 max-w-xl mx-auto">
               <UploadImage />
             </div>
           )}
 
           {jardinOuvert && formOuvert && (
-            <div className="bg-white rounded-2xl border border-line p-8 mb-8">
+            <div className="bg-white rounded-2xl border border-line p-8 mb-10 max-w-xl mx-auto">
               <h2 className="text-lg font-display text-pine mb-5">Votre message</h2>
               <div className="space-y-4">
                 <input
@@ -161,84 +154,62 @@ export default function Garden() {
             </div>
           )}
 
-          {images.length > 0 && (
-            <div className="mb-12">
-              <h2 className="text-xl font-display text-pine mb-6 text-center">Dernières photos</h2>
-              <div className="flex justify-center items-center gap-8 flex-wrap">
-                {images.map((img, index) => {
-                  const shape = getShape(index);
-                  return (
-                    <div
-                      key={index}
-                      className="cursor-pointer hover:scale-110 transition duration-300"
-                      style={{ width: 160, height: 160 }}
+          {/* TOP PHOTOS */}
+          <div className="mb-14">
+            <h2 className="text-xl font-display text-pine mb-5 text-center">Les 3 photos les plus aimées</h2>
+            {images.length === 0 ? (
+              <p className="text-pine-soft/50 text-sm text-center">Aucune photo pour l'instant.</p>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                {images.map((img, index) => (
+                  <div key={index} className="rounded-xl overflow-hidden border border-line bg-white">
+                    <img
+                      src={img.url}
+                      alt="Souvenir"
+                      className="w-full h-48 object-cover cursor-pointer hover:opacity-90 transition"
                       onClick={() => setSelectedImage(img.url)}
-                    >
-                      <img
-                        src={img.url}
-                        alt="Souvenir"
-                        style={{ width: "100%", height: "100%", objectFit: "cover", ...shape.style }}
-                      />
+                    />
+                    <div className="p-3">
+                      <p className="text-xs text-pine-soft/70">{img.auteur}</p>
+                      <p className="text-xs text-terracotta">{totalReactions(img)} réaction{totalReactions(img) > 1 ? "s" : ""}</p>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          <div className="mt-4 mb-16">
-            <h2 className="text-xl font-display text-pine mb-6 text-center">Derniers messages</h2>
-
-            {messages.length === 0 && (
-              <div className="text-center py-16 text-pine-soft/50">
-                <p>Aucun message pour l'instant</p>
+                  </div>
+                ))}
               </div>
             )}
+          </div>
 
-            <div className="space-y-6">
+          {/* TOP MESSAGES */}
+          <div className="mb-16">
+            <h2 className="text-xl font-display text-pine mb-5 text-center">Les 3 messages les plus aimés</h2>
+
+            {messages.length === 0 && (
+              <p className="text-pine-soft/50 text-sm text-center">Aucun message pour l'instant.</p>
+            )}
+
+            <div className="space-y-4 max-w-2xl mx-auto">
               {messages.map((msg, index) => (
-                <div
-                  key={index}
-                  className="relative p-8 rounded-2xl bg-white border border-line"
-                >
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="h-px flex-1 bg-line" />
-                    <span className="text-terracotta text-xs">✦</span>
-                    <div className="h-px flex-1 bg-line" />
+                <div key={index} className="p-6 rounded-xl bg-white border border-line">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="font-display italic text-terracotta-dark">{msg.nom}</p>
+                    <span className="text-xs text-pine-soft/50">{msg.date}</span>
                   </div>
-
-                  <p className="font-display italic text-center text-xl mb-4 text-terracotta-dark">
-                    {msg.nom}
-                  </p>
-
-                  <p className="text-center leading-relaxed mb-5 px-4 text-pine-soft">
-                    {msg.texte}
-                  </p>
-
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="h-px flex-1 bg-line" />
-                    <span className="text-terracotta text-xs">✦</span>
-                    <div className="h-px flex-1 bg-line" />
-                  </div>
-
-                  <div className="flex items-center justify-between flex-wrap gap-3">
-                    <span className="text-xs text-pine-soft/60 italic">{msg.date}</span>
-                    <div className="flex gap-2">
-                      {[
-                        { type: "likes", label: "cœur", count: msg.likes },
-                        { type: "fleurs", label: "fleur", count: msg.fleurs },
-                        { type: "etoiles", label: "étoile", count: msg.etoiles },
-                      ].map(({ type, label, count }) => (
-                        <button
-                          key={type}
-                          onClick={() => ajouterReaction(msg.id, type)}
-                          className="px-3 py-1 rounded-full text-xs transition hover:bg-cream-dark bg-cream border border-line text-pine-soft"
-                          title={label}
-                        >
-                          {count || 0}
-                        </button>
-                      ))}
-                    </div>
+                  <p className="text-pine-soft leading-relaxed mb-3">{msg.texte}</p>
+                  <div className="flex gap-2">
+                    {[
+                      { type: "likes", label: "cœur", count: msg.likes },
+                      { type: "fleurs", label: "fleur", count: msg.fleurs },
+                      { type: "etoiles", label: "étoile", count: msg.etoiles },
+                    ].map(({ type, label, count }) => (
+                      <button
+                        key={type}
+                        onClick={() => ajouterReaction(msg.id, type)}
+                        className="px-2.5 py-1 rounded-full text-xs transition hover:bg-cream-dark bg-cream border border-line text-pine-soft"
+                        title={label}
+                      >
+                        {count || 0}
+                      </button>
+                    ))}
                   </div>
                 </div>
               ))}

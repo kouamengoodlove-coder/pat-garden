@@ -3,6 +3,11 @@ import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase
 import { db } from "../firebase/firebase";
 
 export default function MotsDePat() {
+  const aujourdHui = new Date();
+  const jour = aujourdHui.getDate();
+  const mois = aujourdHui.getMonth() + 1;
+  const jardinOuvert = mois === 7 && jour >= 10 && jour <= 25;
+
   const [nom, setNom] = useState("");
   const [texte, setTexte] = useState("");
   const [entrees, setEntrees] = useState([]);
@@ -64,16 +69,22 @@ export default function MotsDePat() {
           </p>
         </div>
 
-        <div className="flex justify-center mb-12">
-          <button
-            onClick={() => setFormOuvert(!formOuvert)}
-            className="px-8 py-3.5 rounded-full bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
-          >
-            {formOuvert ? "Fermer" : "Partager un souvenir"}
-          </button>
-        </div>
+        {jardinOuvert ? (
+          <div className="flex justify-center mb-12">
+            <button
+              onClick={() => setFormOuvert(!formOuvert)}
+              className="px-8 py-3.5 rounded-full bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
+            >
+              {formOuvert ? "Fermer" : "Partager un souvenir"}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-honey/10 border border-honey/40 rounded-xl p-5 mb-12 text-center text-sm text-terracotta-dark">
+            Le jardin est actuellement fermé — reviens du 10 au 25 juillet pour partager un souvenir.
+          </div>
+        )}
 
-        {formOuvert && (
+        {formOuvert && jardinOuvert && (
           <div className="bg-white rounded-2xl border border-line p-8 mb-14">
             <h2 className="text-lg font-display text-pine mb-5">Ton souvenir</h2>
             <div className="space-y-4">

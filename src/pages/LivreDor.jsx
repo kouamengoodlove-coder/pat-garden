@@ -3,6 +3,11 @@ import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase
 import { db } from "../firebase/firebase";
 
 export default function LivreDor() {
+  const aujourdHui = new Date();
+  const jour = aujourdHui.getDate();
+  const mois = aujourdHui.getMonth() + 1;
+  const jardinOuvert = mois === 7 && jour >= 10 && jour <= 25;
+
   const [nom, setNom] = useState("");
   const [ville, setVille] = useState("");
   const [message, setMessage] = useState("");
@@ -105,16 +110,22 @@ export default function LivreDor() {
           </div>
         )}
 
-        <div className="flex justify-center mb-10">
-          <button
-            onClick={() => setFormOuvert(!formOuvert)}
-            className="px-8 py-3.5 rounded-full bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
-          >
-            {formOuvert ? "Fermer" : "Signer le livre d'or"}
-          </button>
-        </div>
+        {jardinOuvert ? (
+          <div className="flex justify-center mb-10">
+            <button
+              onClick={() => setFormOuvert(!formOuvert)}
+              className="px-8 py-3.5 rounded-full bg-terracotta hover:bg-terracotta-dark text-cream font-medium transition"
+            >
+              {formOuvert ? "Fermer" : "Signer le livre d'or"}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-honey/10 border border-honey/40 rounded-xl p-5 mb-10 text-center text-sm text-terracotta-dark">
+            Le jardin est actuellement fermé — reviens du 10 au 25 juillet pour signer le Livre d'or.
+          </div>
+        )}
 
-        {formOuvert && (
+        {formOuvert && jardinOuvert && (
           <div className="bg-white rounded-2xl border border-line p-8 mb-10">
             <h2 className="text-xl font-display text-pine mb-6">Votre signature</h2>
             <div className="space-y-4">

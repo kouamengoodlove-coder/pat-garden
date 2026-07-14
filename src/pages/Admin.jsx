@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   collection,
   addDoc,
@@ -8,6 +8,26 @@ import {
   doc,
 } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+
+function grouperParAnneeEtNom(liste, champNom) {
+  const groupes = {};
+  liste.forEach((item) => {
+    const annee = item.annee || "Sans année";
+    const nom = item[champNom] || "Anonyme";
+    if (!groupes[annee]) groupes[annee] = {};
+    if (!groupes[annee][nom]) groupes[annee][nom] = [];
+    groupes[annee][nom].push(item);
+  });
+  return groupes;
+}
+
+function filtrerParRecherche(liste, recherche, champsTexte) {
+  if (recherche.trim() === "") return liste;
+  const r = recherche.toLowerCase();
+  return liste.filter((item) =>
+    champsTexte.some((champ) => (item[champ] || "").toString().toLowerCase().includes(r))
+  );
+}
 
 export default function Admin() {
   const [password, setPassword] = useState("");
@@ -20,6 +40,12 @@ export default function Admin() {
   const [citations, setCitations] = useState([]);
   const [timeline, setTimeline] = useState([]);
   const [playlist, setPlaylist] = useState([]);
+  const [motsDePat, setMotsDePat] = useState([]);
+
+  const [rechercheMessages, setRechercheMessages] = useState("");
+  const [rechercheImages, setRechercheImages] = useState("");
+  const [rechercheLivreDor, setRechercheLivreDor] = useState("");
+  const [rechercheMots, setRechercheMots] = useState("");
 
   const [nouvelleCitation, setNouvelleCitation] = useState("");
   const [tlDate, setTlDate] = useState("");
@@ -56,6 +82,9 @@ export default function Admin() {
 
     const playlistData = await getDocs(collection(db, "playlist"));
     setPlaylist(playlistData.docs.map((d) => ({ id: d.id, ...d.data() })));
+
+    const motsData = await getDocs(collection(db, "motsdepat"));
+    setMotsDePat(motsData.docs.map((d) => ({ id: d.id, ...d.data() })));
   }
 
   useEffect(() => {
@@ -121,6 +150,34 @@ export default function Admin() {
     setPlaylist(playlist.filter((p) => p.id !== id));
   }
 
+  async function supprimerMotDePat(id) {
+    if (!window.confirm("Supprimer ce souvenir ?")) return;
+    await deleteDoc(doc(db, "motsdepat", id));
+    setMotsDePat(motsDePat.filter((m) => m.id !== id));
+  }
+
+  const messagesFiltres = useMemo(
+    () => filtrerParRecherche(messages, rechercheMessages, ["nom", "date", "texte"]),
+    [messages, rechercheMessages]
+  );
+  const imagesFiltrees = useMemo(
+    () => filtrerParRecherche(images, rechercheImages, ["auteur", "date"]),
+    [images, rechercheImages]
+  );
+  const livreDorFiltre = useMemo(
+    () => filtrerParRecherche(livreDor, rechercheLivreDor, ["nom", "date", "ville", "texte"]),
+    [livreDor, rechercheLivreDor]
+  );
+  const motsFiltres = useMemo(
+    () => filtrerParRecherche(motsDePat, rechercheMots, ["nom", "date", "texte"]),
+    [motsDePat, rechercheMots]
+  );
+
+  const messagesGroupes = useMemo(() => grouperParAnneeEtNom(messagesFiltres, "nom"), [messagesFiltres]);
+  const imagesGroupees = useMemo(() => grouperParAnneeEtNom(imagesFiltrees, "auteur"), [imagesFiltrees]);
+  const livreDorGroupe = useMemo(() => grouperParAnneeEtNom(livreDorFiltre, "nom"), [livreDorFiltre]);
+  const motsGroupes = useMemo(() => grouperParAnneeEtNom(motsFiltres, "nom"), [motsFiltres]);
+
   if (!access) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-pine p-6">
@@ -150,7 +207,7 @@ export default function Admin() {
         <h1 className="text-4xl font-display text-pine mb-12">Administration</h1>
 
         {/* STATS */}
-        <div className="grid md:grid-cols-3 gap-5 mb-16">
+        <div className="grid md:grid-cols-4 gap-5 mb-16">
           <div className="bg-white rounded-2xl p-6 border border-line">
             <h3 className="text-sm uppercase tracking-wide text-pine-soft">Messages</h3>
             <p className="text-3xl font-display text-terracotta mt-2">{messages.length}</p>
@@ -163,47 +220,74 @@ export default function Admin() {
             <h3 className="text-sm uppercase tracking-wide text-pine-soft">Images</h3>
             <p className="text-3xl font-display text-terracotta mt-2">{images.length}</p>
           </div>
+          <div className="bg-white rounded-2xl p-6 border border-line">
+            <h3 className="text-sm uppercase tracking-wide text-pine-soft">Mots de Pat</h3>
+            <p className="text-3xl font-display text-terracotta mt-2">{motsDePat.length}</p>
+          </div>
         </div>
 
         {/* MODERATION IMAGES */}
         <div className="mb-20">
-          <h2 className="text-2xl font-display text-pine mb-2">Modération des photos</h2>
-          <p className="text-sm text-pine-soft mb-8">
+          <div className="flex flex-wrap items-center justify-between gap-4 mb-2">
+            <h2 className="text-2xl font-display text-pine">Photos, par année et par personne</h2>
+          </div>
+          <p className="text-sm text-pine-soft mb-5">
             Les nouvelles photos sont masquées au public jusqu'à validation.
           </p>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {images.map((img) => {
-              const approuvee = img.approuve !== false;
-              return (
-                <div key={img.id} className="bg-white rounded-2xl border border-line p-4">
-                  <img src={img.url} alt="Souvenir" className="rounded-xl mb-3 w-full h-48 object-cover" />
-                  <p className="font-medium text-pine text-sm mb-1">{img.auteur}</p>
-                  <p className="text-xs text-pine-soft/70 mb-3">{img.date}</p>
-                  <span
-                    className={`inline-block text-xs px-2.5 py-1 rounded-full mb-3 ${
-                      approuvee ? "bg-sage/20 text-pine" : "bg-honey/25 text-terracotta-dark"
-                    }`}
-                  >
-                    {approuvee ? "Visible" : "En attente"}
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => toggleApprobation(img.id, img.approuve)}
-                      className="flex-1 px-3 py-2 rounded-lg bg-pine text-cream text-xs font-medium hover:bg-pine-soft transition"
-                    >
-                      {approuvee ? "Masquer" : "Approuver"}
-                    </button>
-                    <button
-                      onClick={() => supprimerImage(img.id)}
-                      className="px-3 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
-                    >
-                      Supprimer
-                    </button>
+          <input
+            type="text"
+            placeholder="Rechercher par nom ou date..."
+            value={rechercheImages}
+            onChange={(e) => setRechercheImages(e.target.value)}
+            className="w-full p-3 rounded-xl border border-line mb-8 focus:outline-none focus:ring-1 focus:ring-terracotta"
+          />
+
+          {Object.keys(imagesGroupees).length === 0 && (
+            <p className="text-pine-soft/60 text-sm">Aucun résultat.</p>
+          )}
+
+          {Object.keys(imagesGroupees).sort((a, b) => b - a).map((annee) => (
+            <div key={annee} className="mb-10">
+              <h3 className="text-lg font-display text-terracotta mb-4">{annee}</h3>
+              {Object.keys(imagesGroupees[annee]).map((auteur) => (
+                <div key={auteur} className="mb-6">
+                  <p className="text-sm font-medium text-pine mb-3">{auteur}</p>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {imagesGroupees[annee][auteur].map((img) => {
+                      const approuvee = img.approuve !== false;
+                      return (
+                        <div key={img.id} className="bg-white rounded-2xl border border-line p-4">
+                          <img src={img.url} alt="Souvenir" className="rounded-xl mb-3 w-full h-48 object-cover" />
+                          <p className="text-xs text-pine-soft/70 mb-3">{img.date}</p>
+                          <span
+                            className={`inline-block text-xs px-2.5 py-1 rounded-full mb-3 ${
+                              approuvee ? "bg-sage/20 text-pine" : "bg-honey/25 text-terracotta-dark"
+                            }`}
+                          >
+                            {approuvee ? "Visible" : "En attente"}
+                          </span>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => toggleApprobation(img.id, img.approuve)}
+                              className="flex-1 px-3 py-2 rounded-lg bg-pine text-cream text-xs font-medium hover:bg-pine-soft transition"
+                            >
+                              {approuvee ? "Masquer" : "Approuver"}
+                            </button>
+                            <button
+                              onClick={() => supprimerImage(img.id)}
+                              className="px-3 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
+                            >
+                              Supprimer
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ))}
         </div>
 
         {/* CITATIONS */}
@@ -320,45 +404,129 @@ export default function Admin() {
 
         {/* MESSAGES */}
         <div className="mb-20">
-          <h2 className="text-2xl font-display text-pine mb-8">Messages du jardin</h2>
-          <div className="space-y-4">
-            {messages.map((msg) => (
-              <div key={msg.id} className="bg-white rounded-2xl border border-line p-6">
-                <h3 className="font-display text-lg text-pine mb-1">{msg.nom}</h3>
-                <p className="text-pine-soft mb-4">{msg.texte}</p>
-                <button
-                  onClick={() => supprimerMessage(msg.id)}
-                  className="px-4 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
-                >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-2xl font-display text-pine mb-2">Messages, par année et par personne</h2>
+          <input
+            type="text"
+            placeholder="Rechercher par nom, date ou contenu..."
+            value={rechercheMessages}
+            onChange={(e) => setRechercheMessages(e.target.value)}
+            className="w-full p-3 rounded-xl border border-line mb-8 mt-4 focus:outline-none focus:ring-1 focus:ring-terracotta"
+          />
+
+          {Object.keys(messagesGroupes).length === 0 && (
+            <p className="text-pine-soft/60 text-sm">Aucun résultat.</p>
+          )}
+
+          {Object.keys(messagesGroupes).sort((a, b) => b - a).map((annee) => (
+            <div key={annee} className="mb-10">
+              <h3 className="text-lg font-display text-terracotta mb-4">{annee}</h3>
+              {Object.keys(messagesGroupes[annee]).map((nom) => (
+                <div key={nom} className="mb-6">
+                  <p className="text-sm font-medium text-pine mb-3">{nom}</p>
+                  <div className="space-y-4">
+                    {messagesGroupes[annee][nom].map((msg) => (
+                      <div key={msg.id} className="bg-white rounded-2xl border border-line p-6">
+                        <p className="text-pine-soft mb-2">{msg.texte}</p>
+                        <p className="text-xs text-pine-soft/60 mb-4">{msg.date}</p>
+                        <button
+                          onClick={() => supprimerMessage(msg.id)}
+                          className="px-4 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+
+        {/* LES MOTS DE PAT */}
+        <div className="mb-20">
+          <h2 className="text-2xl font-display text-pine mb-2">Les mots de Pat, par année et par personne</h2>
+          <input
+            type="text"
+            placeholder="Rechercher par nom, date ou contenu..."
+            value={rechercheMots}
+            onChange={(e) => setRechercheMots(e.target.value)}
+            className="w-full p-3 rounded-xl border border-line mb-8 mt-4 focus:outline-none focus:ring-1 focus:ring-terracotta"
+          />
+
+          {Object.keys(motsGroupes).length === 0 && (
+            <p className="text-pine-soft/60 text-sm">Aucun résultat.</p>
+          )}
+
+          {Object.keys(motsGroupes).sort((a, b) => b - a).map((annee) => (
+            <div key={annee} className="mb-10">
+              <h3 className="text-lg font-display text-terracotta mb-4">{annee}</h3>
+              {Object.keys(motsGroupes[annee]).map((nom) => (
+                <div key={nom} className="mb-6">
+                  <p className="text-sm font-medium text-pine mb-3">{nom}</p>
+                  <div className="space-y-4">
+                    {motsGroupes[annee][nom].map((entree) => (
+                      <div key={entree.id} className="bg-white rounded-2xl border border-line p-6">
+                        <p className="text-pine-soft italic font-display mb-2">"{entree.texte}"</p>
+                        <p className="text-xs text-pine-soft/60 mb-4">{entree.date} — {entree.coeurs || 0} cœur(s)</p>
+                        <button
+                          onClick={() => supprimerMotDePat(entree.id)}
+                          className="px-4 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
 
         {/* LIVRE D'OR */}
         <div>
-          <h2 className="text-2xl font-display text-pine mb-8">Livre d'or</h2>
-          <div className="space-y-4">
-            {livreDor.map((page) => (
-              <div key={page.id} className="bg-white rounded-2xl border border-line p-6">
-                <h3 className="font-display text-lg text-pine mb-1">{page.nom}</h3>
-                {page.ville && <p className="text-sage text-sm mb-2">{page.ville}</p>}
-                <p className="text-pine-soft mb-2">{page.texte}</p>
-                <p className="text-pine-soft/60 text-xs mb-4">
-                  {page.date}
-                  {page.dateRevelation ? ` — capsule révélée le ${new Date(page.dateRevelation).toLocaleDateString("fr-FR")}` : ""}
-                </p>
-                <button
-                  onClick={() => supprimerLivreDor(page.id)}
-                  className="px-4 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
-                >
-                  Supprimer
-                </button>
-              </div>
-            ))}
-          </div>
+          <h2 className="text-2xl font-display text-pine mb-2">Livre d'or, par année et par personne</h2>
+          <input
+            type="text"
+            placeholder="Rechercher par nom, ville, date ou contenu..."
+            value={rechercheLivreDor}
+            onChange={(e) => setRechercheLivreDor(e.target.value)}
+            className="w-full p-3 rounded-xl border border-line mb-8 mt-4 focus:outline-none focus:ring-1 focus:ring-terracotta"
+          />
+
+          {Object.keys(livreDorGroupe).length === 0 && (
+            <p className="text-pine-soft/60 text-sm">Aucun résultat.</p>
+          )}
+
+          {Object.keys(livreDorGroupe).sort((a, b) => b - a).map((annee) => (
+            <div key={annee} className="mb-10">
+              <h3 className="text-lg font-display text-terracotta mb-4">{annee}</h3>
+              {Object.keys(livreDorGroupe[annee]).map((nom) => (
+                <div key={nom} className="mb-6">
+                  <p className="text-sm font-medium text-pine mb-3">{nom}</p>
+                  <div className="space-y-4">
+                    {livreDorGroupe[annee][nom].map((page) => (
+                      <div key={page.id} className="bg-white rounded-2xl border border-line p-6">
+                        {page.ville && <p className="text-sage text-sm mb-2">{page.ville}</p>}
+                        <p className="text-pine-soft mb-2">{page.texte}</p>
+                        <p className="text-pine-soft/60 text-xs mb-4">
+                          {page.date}
+                          {page.dateRevelation ? ` — capsule révélée le ${new Date(page.dateRevelation).toLocaleDateString("fr-FR")}` : ""}
+                        </p>
+                        <button
+                          onClick={() => supprimerLivreDor(page.id)}
+                          className="px-4 py-2 rounded-lg bg-terracotta text-cream text-xs font-medium hover:bg-terracotta-dark transition"
+                        >
+                          Supprimer
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
       </div>
     </div>
