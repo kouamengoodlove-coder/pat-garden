@@ -139,10 +139,18 @@ export default function MotsDePat() {
                 </div>
                 <button
                   onClick={() => ajouterCoeur(entree.id)}
-                  className="px-3 py-1.5 rounded-full text-xs bg-cream border border-line text-pine-soft hover:bg-cream-dark transition"
+                  className={`px-2.5 py-1.5 rounded-full text-xs flex items-center gap-1.5 transition border ${
+                    (entree.coeurs || 0) > 0
+                      ? "bg-terracotta/10 border-terracotta/30 text-terracotta-dark"
+                      : "bg-cream border-line text-pine-soft hover:bg-cream-dark"
+                  }`}
                   title="cœur"
+                  aria-label="cœur"
                 >
-                  {entree.coeurs || 0}
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 21s-7.5-4.6-10-9.2C.5 8.4 2.3 5 6 5c2 0 3.5 1.1 4.3 2.4.2.3.7.3.9 0C12 6.1 13.5 5 15.5 5c3.7 0 5.5 3.4 4 6.8-2.5 4.6-10 9.2-10 9.2z" />
+                  </svg>
+                  <span>{entree.coeurs || 0}</span>
                 </button>
               </div>
             </div>

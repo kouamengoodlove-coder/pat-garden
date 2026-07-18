@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import ReactionButtons from "../components/ReactionButtons";
 
 export default function LivreDor() {
   const aujourdHui = new Date();
@@ -199,21 +200,8 @@ export default function LivreDor() {
                 "{page.texte}"
               </blockquote>
 
-              <div className="flex gap-2 mt-6">
-                {[
-                  { type: "likes", label: "cœur", count: page.likes },
-                  { type: "fleurs", label: "fleur", count: page.fleurs },
-                  { type: "etoiles", label: "étoile", count: page.etoiles },
-                ].map(({ type, label, count }) => (
-                  <button
-                    key={type}
-                    onClick={() => ajouterReaction(page.id, type)}
-                    className="px-3 py-1.5 rounded-full text-xs bg-cream border border-line text-pine-soft hover:bg-cream-dark transition"
-                    title={label}
-                  >
-                    {count || 0}
-                  </button>
-                ))}
+              <div className="mt-6">
+                <ReactionButtons item={page} onReagir={ajouterReaction} />
               </div>
             </div>
 

@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { collection, getDocs, doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../firebase/firebase";
+import ReactionButtons from "../components/ReactionButtons";
 
 function filtrer(liste, recherche, champs) {
   if (recherche.trim() === "") return liste;
@@ -11,24 +12,7 @@ function filtrer(liste, recherche, champs) {
 }
 
 function BoutonsReaction({ item, onReagir }) {
-  return (
-    <div className="flex gap-2 mt-3">
-      {[
-        { type: "likes", label: "cœur", count: item.likes },
-        { type: "fleurs", label: "fleur", count: item.fleurs },
-        { type: "etoiles", label: "étoile", count: item.etoiles },
-      ].map(({ type, label, count }) => (
-        <button
-          key={type}
-          onClick={() => onReagir(item.id, type)}
-          className="px-2.5 py-1 rounded-full text-xs bg-cream border border-line text-pine-soft hover:bg-cream-dark transition"
-          title={label}
-        >
-          {count || 0}
-        </button>
-      ))}
-    </div>
-  );
+  return <ReactionButtons item={item} onReagir={onReagir} size="small" />;
 }
 
 export default function Souvenirs() {

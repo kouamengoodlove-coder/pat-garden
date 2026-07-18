@@ -6,6 +6,7 @@ import { collection, addDoc, getDocs, doc, updateDoc, increment } from "firebase
 import { db } from "../firebase/firebase";
 import Petals from "../components/Petals";
 import UploadImage from "../components/UploadImage";
+import ReactionButtons from "../components/ReactionButtons";
 
 function totalReactions(item) {
   return (item.likes || 0) + (item.fleurs || 0) + (item.etoiles || 0);
@@ -195,22 +196,7 @@ export default function Garden() {
                     <span className="text-xs text-pine-soft/50">{msg.date}</span>
                   </div>
                   <p className="text-pine-soft leading-relaxed mb-3">{msg.texte}</p>
-                  <div className="flex gap-2">
-                    {[
-                      { type: "likes", label: "cœur", count: msg.likes },
-                      { type: "fleurs", label: "fleur", count: msg.fleurs },
-                      { type: "etoiles", label: "étoile", count: msg.etoiles },
-                    ].map(({ type, label, count }) => (
-                      <button
-                        key={type}
-                        onClick={() => ajouterReaction(msg.id, type)}
-                        className="px-2.5 py-1 rounded-full text-xs transition hover:bg-cream-dark bg-cream border border-line text-pine-soft"
-                        title={label}
-                      >
-                        {count || 0}
-                      </button>
-                    ))}
-                  </div>
+                  <ReactionButtons item={msg} onReagir={ajouterReaction} size="small" />
                 </div>
               ))}
             </div>
